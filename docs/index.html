@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      (function () {
+        try {
+          var s = localStorage.getItem('docs-color-scheme');
+          if (s === 'light' || s === 'dark') {
+            document.querySelector('meta[name="color-scheme"]').content = s;
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <title>Overview &amp; Tech Stack — Money Tracker PWA Docs</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+    <meta
+      name="description"
+      content="Architecture and technology stack documentation for the Money Tracker PWA and LGTM OpenTelemetry observability suite."
+    />
+    <link rel="stylesheet" href="./assets/styles.css" />
+    <script src="./assets/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand-link" href="./index.html">
+          <span class="brand-mark" aria-hidden="true">&#8377;</span>
+          <span>Money Tracker Docs</span>
+        </a>
+
+        <nav class="header-nav" aria-label="Primary navigation">
+          <a href="./index.html" aria-current="page">Overview &amp; Stack</a>
+          <a href="./hld.html">High-Level Design</a>
+          <a href="./lld.html">Low-Level Design</a>
+          <a href="./observability.html">Observability &amp; LGTM</a>
+        </nav>
+
+        <div class="header-actions">
+          <div class="search-box">
+            <label for="doc-search" class="visually-hidden">Search documentation</label>
+            <input
+              id="doc-search"
+              class="search-input"
+              type="search"
+              placeholder="Search docs (press /)..."
+              autocomplete="off"
+            />
+            <div id="search-results" class="search-results" hidden></div>
+          </div>
+
+          <button
+            id="theme-toggle"
+            class="icon-btn theme-toggle"
+            type="button"
+            aria-label="Toggle color theme"
+          >
+            <span class="label-to-light">
+              <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+              </svg>
+              <span>Light</span>
+            </span>
+            <span class="label-to-dark">
+              <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+              <span>Dark</span>
+            </span>
+          </button>
+
+          <button
+            id="drawer-open"
+            class="icon-btn"
+            type="button"
+            aria-controls="docs-drawer"
+            aria-expanded="false"
+            aria-label="Open navigation menu"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div id="docs-shell" class="docs-shell">
+      <aside class="docs-sidebar" aria-label="Documentation sections">
+        <p class="sidebar-group-title">Documentation</p>
+        <ul class="sidebar-list">
+          <li><a class="sidebar-link" href="./index.html" aria-current="page">Overview &amp; Tech Stack</a></li>
+          <li><a class="sidebar-link" href="./hld.html">High-Level Design (HLD)</a></li>
+          <li><a class="sidebar-link" href="./lld.html">Low-Level Design (LLD)</a></li>
+          <li><a class="sidebar-link" href="./observability.html">Observability &amp; LGTM</a></li>
+        </ul>
+
+        <p class="sidebar-group-title">Exposed Endpoints</p>
+        <div class="card">
+          <h4>Local Services</h4>
+          <p><code>http://localhost:80</code> — App &amp; PWA</p>
+          <p><code>http://localhost:3000</code> — Grafana UI</p>
+          <p><code>/api/*</code> — Proxied to FastAPI</p>
+        </div>
+      </aside>
+
+      <main class="doc-content">
+        <div class="hero-card">
+          <div class="badge-row">
+            <span class="badge">React 18 + Vite PWA</span>
+            <span class="badge">FastAPI + SQLite WAL</span>
+            <span class="badge">Default Currency: INR (&#8377;)</span>
+            <span class="badge">LGTM + OpenTelemetry</span>
+          </div>
+          <h1>Money Tracker PWA &amp; LGTM Observability Stack</h1>
+          <p class="lead">
+            Technical reference covering the offline-first Progressive Web App, INR-first localization,
+            FastAPI/SQLite ledger backend, Nginx gateway, and full 7-container OpenTelemetry observability stack.
+          </p>
+        </div>
+
+        <section id="overview" class="doc-section">
+          <h2>1. Project Overview &amp; Quick Start</h2>
+          <p>
+            Money Tracker is a personal expense and monthly budget tracker packaged as a self-contained
+            <code>docker compose</code> stack. The user interface installs as a standalone PWA, queues mutations in
+            IndexedDB when offline, and synchronizes idempotently with a FastAPI service backed by SQLite in WAL mode.
+          </p>
+          <p>
+            Currency formatting defaults to <strong>Indian Rupee (<code>INR</code> / &#8377;)</strong> using
+            <code>en-IN</code> grouping on the client (with optional display switching to <code>USD</code>,
+            <code>EUR</code>, or <code>GBP</code> in Settings) and <code>CURRENCY=INR</code> on the backend for API
+            metadata and metric histogram units.
+          </p>
+
+          <div class="callout">
+            <strong>Single-Command Local Boot</strong>
+            All seven services build and wire automatically over an isolated bridge network
+            (<code>money-tracker-net</code>). Only HTTP gateway port <code>80</code> and Grafana port
+            <code>3000</code> are published to the host.
+          </div>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span>zsh — Start entire stack &amp; verify health</span>
+              <button class="copy-btn" type="button">Copy</button>
+            </div>
+            <pre><code>docker compose up --build -d
+docker compose ps
+curl -fsS http://localhost:80/api/health
+curl -fsS "http://localhost:80/api/dashboard?year=2026&amp;month=11"</code></pre>
+          </div>
+        </section>
+
+        <section id="frontend-stack" class="doc-section">
+          <h2>2. Frontend Tech Stack</h2>
+          <p>
+            The client emphasizes fast mobile ergonomics, zero third-party auth friction, reliable offline capture,
+            and location-agnostic calendar date arithmetic.
+          </p>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Technology</th>
+                  <th>Version / Package</th>
+                  <th>Role in Application</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>React &amp; Vite</strong></td>
+                  <td><code>react@^18.3.1</code>, <code>vite@^6.1.0</code></td>
+                  <td>Component rendering, reactive dashboard period navigation, fast hashed asset bundles.</td>
+                </tr>
+                <tr>
+                  <td><strong>Vite Plugin PWA</strong></td>
+                  <td><code>vite-plugin-pwa@^0.21.1</code></td>
+                  <td>Workbox service worker (<code>sw.js</code>) precaching JS/CSS/HTML/SVG/PNG/JSON assets with <code>autoUpdate</code> and API exclusion.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tailwind CSS v4</strong></td>
+                  <td><code>tailwindcss@^4.0.9</code>, <code>@tailwindcss/vite</code></td>
+                  <td>Mobile-first utility styling, CSS custom properties, safe-area bottom nav, native <code>&lt;dialog&gt;</code> &amp; <code>&lt;progress&gt;</code> theming.</td>
+                </tr>
+                <tr>
+                  <td><strong>Recharts &amp; Lucide</strong></td>
+                  <td><code>recharts@^2.15.1</code>, <code>lucide-react@^0.475.0</code></td>
+                  <td>Responsive category donut chart, weekly/monthly spending trend line chart, crisp UI icons.</td>
+                </tr>
+                <tr>
+                  <td><strong>Temporal API</strong></td>
+                  <td>Native + <code>temporal-polyfill@^0.3.0</code></td>
+                  <td>Conditional polyfill using <code>Temporal.PlainDate</code> &amp; <code>PlainYearMonth</code> so <code>YYYY-MM-DD</code> dates never shift across UTC midnight.</td>
+                </tr>
+                <tr>
+                  <td><strong>IndexedDB &amp; Intl</strong></td>
+                  <td><code>money-tracker-pwa</code> DB + <code>Intl.NumberFormat</code></td>
+                  <td>Offline snapshots, mutation queue (<code>pending_expenses</code>, <code>pending_budgets</code>), and <code>en-IN</code> &#8377; formatting via <code>currency.js</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="backend-stack" class="doc-section">
+          <h2>3. Backend Tech Stack</h2>
+          <p>
+            The API tier runs on Python 3.11 inside <code>python:3.11-slim</code>, exposing REST endpoints under
+            <code>/api</code> with automatic Pydantic validation and SQLAlchemy ORM persistence.
+          </p>
+
+          <div class="grid-3">
+            <article class="card">
+              <h3>FastAPI + Uvicorn</h3>
+              <p>Typed REST API (<code>/api/dashboard</code>, <code>/api/expenses</code>, <code>/api/budget</code>, <code>/api/health</code>) with lifespan teardown flushing OTel providers cleanly.</p>
+            </article>
+            <article class="card">
+              <h3>SQLAlchemy 2 + SQLite WAL</h3>
+              <p>Mapped models (<code>User</code>, <code>Budget</code>, <code>Expense</code>) storing calendar dates as indexed <code>YYYY-MM-DD</code> strings with foreign keys enabled.</p>
+            </article>
+            <article class="card">
+              <h3>OpenTelemetry SDK</h3>
+              <p>Unified OTLP/HTTP exporter sending traces, custom metrics, and correlated structured logs directly to <code>otel-collector:4318</code>.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="observability-stack" class="doc-section">
+          <h2>4. Observability &amp; Infrastructure Stack</h2>
+          <p>
+            The monitoring plane implements the complete Grafana LGTM architecture decoupled through an OpenTelemetry
+            Collector Contrib gateway.
+          </p>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Component</th>
+                  <th>Docker Image / Version</th>
+                  <th>Protocols &amp; Storage</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Nginx Proxy</strong></td>
+                  <td><code>nginx:1.27-alpine</code></td>
+                  <td>Serves compiled Vite bundle on port <code>80</code>, enforces PWA cache headers, proxies <code>/api/*</code> to backend.</td>
+                </tr>
+                <tr>
+                  <td><strong>OTel Collector</strong></td>
+                  <td><code>otel/opentelemetry-collector-contrib:latest</code> (v0.165+)</td>
+                  <td>Ingests OTLP gRPC (<code>4317</code>) &amp; HTTP (<code>4318</code>); runs <code>memory_limiter</code> + <code>batch</code> processors; self-metrics on <code>8888</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Prometheus</strong></td>
+                  <td><code>prom/prometheus:latest</code> (v3)</td>
+                  <td>Receives metrics via <code>prometheus_remote_write</code> (<code>--web.enable-remote-write-receiver</code>) and scrapes collector/self metrics.</td>
+                </tr>
+                <tr>
+                  <td><strong>Loki</strong></td>
+                  <td><code>grafana/loki:latest</code> (v3)</td>
+                  <td>Native OTLP log ingestion (<code>http://loki:3100/otlp</code>) backed by TSDB + schema <code>v13</code> structured metadata.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tempo</strong></td>
+                  <td><code>grafana/tempo:latest</code> (v3)</td>
+                  <td>Monolithic trace storage (local blocks + WAL) accepting OTLP gRPC on port <code>4317</code>, queried via HTTP <code>3200</code>.</td>
+                </tr>
+                <tr>
+                  <td><strong>Grafana</strong></td>
+                  <td><code>grafana/grafana:latest</code></td>
+                  <td>Pre-provisioned Prometheus, Loki, and Tempo datasources with Trace-to-Logs &amp; Logs-to-Traces linking on port <code>3000</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="directory-structure" class="doc-section">
+          <h2>5. Directory Structure &amp; GitHub Pages Hosting</h2>
+          <p>
+            All repository configuration, application tiers, observability definitions, and this static documentation site
+            live cleanly at the repository root.
+          </p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span>Repository layout</span>
+              <button class="copy-btn" type="button">Copy</button>
+            </div>
+            <pre><code>expense-tracker-PWA-LGTM-stack/
+├── .env                          # Runtime ports, CURRENCY=INR, OTel &amp; Grafana credentials
+├── docker-compose.yml            # 7-service topology, volumes, and bridge network
+├── backend/
+│   ├── Dockerfile                # python:3.11-slim + uvicorn server
+│   ├── requirements.txt          # FastAPI, SQLAlchemy, OTel SDK &amp; instrumentors
+│   ├── models.py                 # User, Budget, Expense models + SQLite WAL pragmas
+│   ├── main.py                   # API routes, OTel setup, aggregation logic
+│   └── tests/test_api.py         # Unit &amp; API integration tests (stdlib unittest)
+├── frontend/
+│   ├── Dockerfile                # Multi-stage Node 22 build -&gt; nginx:1.27-alpine
+│   ├── vite.config.js            # VitePWA manifest + Workbox precaching config
+│   └── src/
+│       ├── api.js                # Online/offline facade &amp; syncPendingChanges loop
+│       ├── App.jsx               # Root state, currency selector &amp; online listeners
+│       ├── components/           # Dashboard, AddExpenseDialog, BottomNav, Settings
+│       └── utils/                # currency.js (INR), temporal.js, offlineStore.js, validation.js
+├── nginx/default.conf            # PWA no-cache rules, immutable /assets/, /api/ proxy
+├── observability/
+│   ├── otel-collector-config.yaml
+│   ├── prometheus.yaml
+│   ├── loki-config.yaml
+│   ├── tempo.yaml
+│   └── grafana/provisioning/     # Pre-wired datasources + LGTM dashboard JSON
+└── docs/                         # Static GitHub Pages documentation website
+    ├── .nojekyll                 # Bypasses Jekyll so assets render as-is
+    ├── index.html                # Overview &amp; Tech Stack (this page)
+    ├── hld.html                  # High-Level Design &amp; architecture diagrams
+    ├── lld.html                  # Low-Level Design (DB schema, API, client modules)
+    ├── observability.html        # LGTM &amp; OpenTelemetry deep dive
+    └── assets/                   # Relative CSS &amp; vanilla JS bundle</code></pre>
+          </div>
+
+          <h3>Publishing on GitHub Pages</h3>
+          <p>
+            Every asset URL in <code>docs/</code> uses relative paths (<code>./assets/...</code>,
+            <code>./hld.html</code>) and includes an empty <code>docs/.nojekyll</code> file, so the site works cleanly
+            both at custom domains and under repository subpaths such as
+            <code>https://&lt;username&gt;.github.io/expense-tracker-PWA-LGTM-stack/</code>.
+          </p>
+          <ol>
+            <li>Push the repository (including the <code>docs/</code> directory) to your <code>main</code> branch on GitHub.</li>
+            <li>Open <strong>Repository Settings &rarr; Pages</strong>.</li>
+            <li>Under <strong>Build and deployment &rarr; Source</strong>, choose <strong>Deploy from a branch</strong>.</li>
+            <li>Select branch <code>main</code> and folder <strong><code>/docs</code></strong>, then click <strong>Save</strong>.</li>
+          </ol>
+        </section>
+
+        <nav class="page-pager" aria-label="Page pagination">
+          <span></span>
+          <a class="pager-link" href="./hld.html">
+            <span class="pager-label">Next Document &rarr;</span>
+            <span class="pager-title">High-Level Design (HLD)</span>
+          </a>
+        </nav>
+      </main>
+
+      <aside class="docs-toc" aria-label="On this page">
+        <p class="toc-title">On This Page</p>
+        <nav class="toc-nav">
+          <a href="#overview">1. Project Overview</a>
+          <a href="#frontend-stack">2. Frontend Tech Stack</a>
+          <a href="#backend-stack">3. Backend Tech Stack</a>
+          <a href="#observability-stack">4. Observability Stack</a>
+          <a href="#directory-structure">5. Repo &amp; GitHub Pages</a>
+        </nav>
+      </aside>
+    </div>
+
+    <div id="docs-drawer" class="Drawer" popover="manual" aria-label="Mobile navigation">
+      <div class="Drawer-scroller">
+        <nav class="Drawer-sheet" tabindex="-1" aria-label="Documentation navigation">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+            <span class="brand-link">
+              <span class="brand-mark" aria-hidden="true">&#8377;</span>
+              <span>Navigation</span>
+            </span>
+            <button id="drawer-close" class="icon-btn" type="button" aria-label="Close navigation menu">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          <p class="sidebar-group-title">Documentation Pages</p>
+          <ul class="sidebar-list">
+            <li><a class="sidebar-link" href="./index.html" aria-current="page">Overview &amp; Tech Stack</a></li>
+            <li><a class="sidebar-link" href="./hld.html">High-Level Design (HLD)</a></li>
+            <li><a class="sidebar-link" href="./lld.html">Low-Level Design (LLD)</a></li>
+            <li><a class="sidebar-link" href="./observability.html">Observability &amp; LGTM</a></li>
+          </ul>
+        </nav>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      (function () {
+        try {
+          var s = localStorage.getItem('docs-color-scheme');
+          if (s === 'light' || s === 'dark') {
+            document.querySelector('meta[name="color-scheme"]').content = s;
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <title>High-Level Design (HLD) — Money Tracker PWA Docs</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+    <meta
+      name="description"
+      content="System architecture, Docker bridge topology, offline-first PWA sync flow, and Nginx gateway routing for Money Tracker."
+    />
+    <link rel="stylesheet" href="./assets/styles.css" />
+    <script src="./assets/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand-link" href="./index.html">
+          <span class="brand-mark" aria-hidden="true">&#8377;</span>
+          <span>Money Tracker Docs</span>
+        </a>
+
+        <nav class="header-nav" aria-label="Primary navigation">
+          <a href="./index.html">Overview &amp; Stack</a>
+          <a href="./hld.html" aria-current="page">High-Level Design</a>
+          <a href="./lld.html">Low-Level Design</a>
+          <a href="./observability.html">Observability &amp; LGTM</a>
+        </nav>
+
+        <div class="header-actions">
+          <div class="search-box">
+            <label for="doc-search" class="visually-hidden">Search documentation</label>
+            <input
+              id="doc-search"
+              class="search-input"
+              type="search"
+              placeholder="Search docs (press /)..."
+              autocomplete="off"
+            />
+            <div id="search-results" class="search-results" hidden></div>
+          </div>
+
+          <button
+            id="theme-toggle"
+            class="icon-btn theme-toggle"
+            type="button"
+            aria-label="Toggle color theme"
+          >
+            <span class="label-to-light">
+              <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+              </svg>
+              <span>Light</span>
+            </span>
+            <span class="label-to-dark">
+              <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+              <span>Dark</span>
+            </span>
+          </button>
+
+          <button
+            id="drawer-open"
+            class="icon-btn"
+            type="button"
+            aria-controls="docs-drawer"
+            aria-expanded="false"
+            aria-label="Open navigation menu"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div id="docs-shell" class="docs-shell">
+      <aside class="docs-sidebar" aria-label="Documentation sections">
+        <p class="sidebar-group-title">Documentation</p>
+        <ul class="sidebar-list">
+          <li><a class="sidebar-link" href="./index.html">Overview &amp; Tech Stack</a></li>
+          <li><a class="sidebar-link" href="./hld.html" aria-current="page">High-Level Design (HLD)</a></li>
+          <li><a class="sidebar-link" href="./lld.html">Low-Level Design (LLD)</a></li>
+          <li><a class="sidebar-link" href="./observability.html">Observability &amp; LGTM</a></li>
+        </ul>
+
+        <p class="sidebar-group-title">Architecture Key</p>
+        <div class="card">
+          <h4>Two Logical Planes</h4>
+          <p><strong>Data Plane:</strong> Client PWA &rarr; Nginx &rarr; FastAPI &rarr; SQLite.</p>
+          <p style="margin-top:0.4rem;"><strong>Telemetry Plane:</strong> FastAPI &rarr; OTel Collector &rarr; Prometheus / Loki / Tempo &rarr; Grafana.</p>
+        </div>
+      </aside>
+
+      <main class="doc-content">
+        <div class="hero-card">
+          <div class="badge-row">
+            <span class="badge">7-Container Mesh</span>
+            <span class="badge">Offline-First Sync</span>
+            <span class="badge">Least-Exposure Ports</span>
+          </div>
+          <h1>High-Level Design (HLD)</h1>
+          <p class="lead">
+            End-to-end container topology, Docker network isolation, persistent volume boundaries,
+            offline-first synchronization sequence, and Nginx reverse-proxy edge rules.
+          </p>
+        </div>
+
+        <section id="system-architecture" class="doc-section">
+          <h2>1. System Context &amp; Container Topology</h2>
+          <p>
+            The platform separates user-facing ledger operations from telemetry fan-out so monitoring overhead never
+            couples storage engines to application handlers. All inter-service resolution relies on Docker embedded DNS
+            inside <code>money-tracker-net</code>.
+          </p>
+
+          <figure class="diagram-card">
+            <svg viewBox="0 0 860 390" role="img" aria-label="System Architecture Diagram showing Browser PWA connecting to Nginx on port 80, forwarding API traffic to FastAPI backend and SQLite, while FastAPI exports OTLP telemetry to OTel Collector which fans out to Prometheus, Loki, Tempo, and Grafana.">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--brand)"></path>
+                </marker>
+              </defs>
+
+              <!-- Network boundary -->
+              <rect x="200" y="16" width="644" height="356" rx="14" fill="none" stroke="var(--border)" stroke-width="2" stroke-dasharray="6 5"></rect>
+              <text x="218" y="38" font-size="12" font-weight="700" fill="var(--text-secondary)">Docker Bridge Network: money-tracker-net</text>
+
+              <!-- Browser PWA -->
+              <rect x="16" y="68" width="150" height="104" rx="12" fill="var(--bg-subtle)" stroke="var(--brand)" stroke-width="2"></rect>
+              <text x="91" y="96" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">User Browser</text>
+              <text x="91" y="116" text-anchor="middle" font-size="11" fill="var(--text-secondary)">React 18 + Workbox SW</text>
+              <text x="91" y="134" text-anchor="middle" font-size="11" fill="var(--text-secondary)">IndexedDB Cache + Queue</text>
+              <text x="91" y="152" text-anchor="middle" font-size="11" fill="var(--brand)">Currency: INR (&#8377;)</text>
+
+              <!-- Operator Browser -->
+              <rect x="16" y="244" width="150" height="72" rx="12" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1.5"></rect>
+              <text x="91" y="274" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">Operator Browser</text>
+              <text x="91" y="294" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Dashboards &amp; Trace Search</text>
+
+              <!-- Frontend Nginx -->
+              <rect x="224" y="68" width="154" height="104" rx="12" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="2"></rect>
+              <text x="301" y="96" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">frontend (Nginx)</text>
+              <text x="301" y="116" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Host Port :80 -&gt; :80</text>
+              <text x="301" y="134" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Static SPA + /assets/</text>
+              <text x="301" y="152" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Proxy /api/*</text>
+
+              <!-- FastAPI Backend -->
+              <rect x="424" y="68" width="166" height="104" rx="12" fill="var(--bg-subtle)" stroke="var(--brand)" stroke-width="2"></rect>
+              <text x="507" y="96" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">backend (FastAPI)</text>
+              <text x="507" y="116" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Internal :8000 (uvicorn)</text>
+              <text x="507" y="134" text-anchor="middle" font-size="11" fill="var(--text-secondary)">SQLAlchemy + CURRENCY=INR</text>
+              <text x="507" y="152" text-anchor="middle" font-size="11" fill="var(--text-secondary)">FastAPI + SQLite3 OTel SDK</text>
+
+              <!-- SQLite Volume -->
+              <rect x="646" y="78" width="166" height="84" rx="12" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1.5"></rect>
+              <text x="729" y="108" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">SQLite (WAL Mode)</text>
+              <text x="729" y="128" text-anchor="middle" font-size="11" fill="var(--text-secondary)">/app/data/database.db</text>
+              <text x="729" y="146" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Vol: backend-data</text>
+
+              <!-- OTel Collector -->
+              <rect x="424" y="216" width="166" height="72" rx="12" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.5"></rect>
+              <text x="507" y="244" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">otel-collector</text>
+              <text x="507" y="264" text-anchor="middle" font-size="11" fill="var(--text-secondary)">OTLP :4317 / :4318 | Self :8888</text>
+
+              <!-- Prometheus / Loki / Tempo -->
+              <rect x="646" y="186" width="166" height="44" rx="9" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1.5"></rect>
+              <text x="729" y="213" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-primary)">Prometheus (:9090)</text>
+
+              <rect x="646" y="240" width="166" height="44" rx="9" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1.5"></rect>
+              <text x="729" y="267" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-primary)">Loki v3 (:3100)</text>
+
+              <rect x="646" y="294" width="166" height="44" rx="9" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1.5"></rect>
+              <text x="729" y="321" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-primary)">Tempo v3 (:3200 / :4317)</text>
+
+              <!-- Grafana -->
+              <rect x="224" y="244" width="154" height="72" rx="12" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="2"></rect>
+              <text x="301" y="274" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">Grafana</text>
+              <text x="301" y="294" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Host Port :3000 -&gt; :3000</text>
+
+              <!-- Arrows -->
+              <line x1="166" y1="120" x2="220" y2="120" stroke="var(--brand)" stroke-width="2" marker-end="url(#arrow)"></line>
+              <line x1="378" y1="120" x2="420" y2="120" stroke="var(--brand)" stroke-width="2" marker-end="url(#arrow)"></line>
+              <line x1="590" y1="120" x2="642" y2="120" stroke="var(--brand)" stroke-width="2" marker-end="url(#arrow)"></line>
+              <line x1="507" y1="172" x2="507" y2="212" stroke="var(--brand)" stroke-width="2" marker-end="url(#arrow)"></line>
+              <line x1="590" y1="234" x2="642" y2="208" stroke="var(--brand)" stroke-width="1.8" marker-end="url(#arrow)"></line>
+              <line x1="590" y1="254" x2="642" y2="262" stroke="var(--brand)" stroke-width="1.8" marker-end="url(#arrow)"></line>
+              <line x1="590" y1="274" x2="642" y2="316" stroke="var(--brand)" stroke-width="1.8" marker-end="url(#arrow)"></line>
+              <line x1="166" y1="280" x2="220" y2="280" stroke="var(--brand)" stroke-width="2" marker-end="url(#arrow)"></line>
+              <path d="M 378 296 C 420 352, 600 352, 644 328" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" stroke-dasharray="4 4"></path>
+            </svg>
+            <figcaption class="diagram-caption">
+              Figure 1 — Request path through Nginx (:80) &amp; FastAPI (:8000) alongside the decoupled OTLP telemetry pipeline to Grafana (:3000).
+            </figcaption>
+          </figure>
+        </section>
+
+        <section id="network-storage" class="doc-section">
+          <h2>2. Docker Bridge Network &amp; Persistent Volumes</h2>
+          <p>
+            Only edge entrypoints bind to the host interface. Backend APIs, SQLite storage, Prometheus, Loki, Tempo,
+            and the OTel Collector remain private to <code>money-tracker-net</code>.
+          </p>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Volume / Resource</th>
+                  <th>Container Mount Path</th>
+                  <th>Data Stored</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>backend-data</code></td>
+                  <td><code>/app/data</code> (<code>money-tracker-backend</code>)</td>
+                  <td>SQLite database file (<code>database.db</code>), <code>-wal</code>, and <code>-shm</code> files.</td>
+                </tr>
+                <tr>
+                  <td><code>prometheus-data</code></td>
+                  <td><code>/prometheus</code> (<code>money-tracker-prometheus</code>)</td>
+                  <td>Time-series TSDB blocks pushed via <code>prometheus_remote_write</code> and scrape targets.</td>
+                </tr>
+                <tr>
+                  <td><code>loki-data</code></td>
+                  <td><code>/loki</code> (<code>money-tracker-loki</code>)</td>
+                  <td>Log chunks, TSDB v13 index, retention compactor working files.</td>
+                </tr>
+                <tr>
+                  <td><code>tempo-data</code></td>
+                  <td><code>/var/tempo</code> (<code>money-tracker-tempo</code>)</td>
+                  <td>Trace WAL and monolithic local Parquet/trace blocks.</td>
+                </tr>
+                <tr>
+                  <td><code>grafana-data</code></td>
+                  <td><code>/var/lib/grafana</code> (<code>money-tracker-grafana</code>)</td>
+                  <td>Grafana internal SQLite database and session/user settings (provisioning mounted read-only).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="offline-pwa" class="doc-section">
+          <h2>3. Offline-First PWA &amp; Idempotent Sync Flow</h2>
+          <p>
+            Expenses can be captured seamlessly even with airplane mode enabled. Every client-created expense generates
+            a deterministic UUID (<code>client_id</code>) via <code>crypto.randomUUID()</code>. When connectivity
+            resumes, <code>syncPendingChanges()</code> replays queued budgets first, then pending expenses. Because
+            <code>expenses.client_id</code> carries a <code>UNIQUE</code> constraint in SQLite, duplicate retries return
+            the existing row idempotently instead of double-counting spending.
+          </p>
+
+          <figure class="diagram-card">
+            <svg viewBox="0 0 860 300" role="img" aria-label="Sequence Diagram illustrating offline capture in IndexedDB followed by automatic idempotent replay using client_id when online.">
+              <defs>
+                <marker id="seq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--brand)"></path>
+                </marker>
+              </defs>
+
+              <!-- Lifelines -->
+              <rect x="30" y="18" width="140" height="36" rx="8" fill="var(--brand-soft)" stroke="var(--brand)"></rect>
+              <text x="100" y="41" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-primary)">React UI (App.jsx)</text>
+              <line x1="100" y1="54" x2="100" y2="280" stroke="var(--border)" stroke-width="2" stroke-dasharray="4 4"></line>
+
+              <rect x="260" y="18" width="160" height="36" rx="8" fill="var(--bg-subtle)" stroke="var(--border)"></rect>
+              <text x="340" y="41" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-primary)">IndexedDB (offlineStore)</text>
+              <line x1="340" y1="54" x2="340" y2="280" stroke="var(--border)" stroke-width="2" stroke-dasharray="4 4"></line>
+
+              <rect x="490" y="18" width="140" height="36" rx="8" fill="var(--bg-subtle)" stroke="var(--border)"></rect>
+              <text x="560" y="41" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-primary)">Workbox SW / Net</text>
+              <line x1="560" y1="54" x2="560" y2="280" stroke="var(--border)" stroke-width="2" stroke-dasharray="4 4"></line>
+
+              <rect x="690" y="18" width="146" height="36" rx="8" fill="var(--brand-soft)" stroke="var(--brand)"></rect>
+              <text x="763" y="41" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-primary)">FastAPI + SQLite</text>
+              <line x1="763" y1="54" x2="763" y2="280" stroke="var(--border)" stroke-width="2" stroke-dasharray="4 4"></line>
+
+              <!-- Step 1 -->
+              <line x1="100" y1="92" x2="336" y2="92" stroke="var(--brand)" stroke-width="2" marker-end="url(#seq-arrow)"></line>
+              <text x="218" y="84" text-anchor="middle" font-size="11" fill="var(--text-primary)">1. Offline submit -&gt; enqueuePendingExpense(client_id)</text>
+
+              <!-- Step 2 -->
+              <line x1="340" y1="130" x2="104" y2="130" stroke="var(--text-secondary)" stroke-width="1.8" stroke-dasharray="4 3" marker-end="url(#seq-arrow)"></line>
+              <text x="218" y="122" text-anchor="middle" font-size="11" fill="var(--text-secondary)">2. buildOfflineDashboard() recalculates &#8377; totals &amp; charts locally</text>
+
+              <!-- Step 3 -->
+              <line x1="100" y1="176" x2="758" y2="176" stroke="var(--brand)" stroke-width="2" marker-end="url(#seq-arrow)"></line>
+              <text x="430" y="168" text-anchor="middle" font-size="11" fill="var(--text-primary)">3. window 'online' event -&gt; POST /api/expenses { client_id }</text>
+
+              <!-- Step 4 -->
+              <line x1="763" y1="214" x2="104" y2="214" stroke="var(--text-secondary)" stroke-width="1.8" stroke-dasharray="4 3" marker-end="url(#seq-arrow)"></line>
+              <text x="430" y="206" text-anchor="middle" font-size="11" fill="var(--text-secondary)">4. Deduplicate on UNIQUE(client_id), emit OTel metric + span, return 201</text>
+
+              <!-- Step 5 -->
+              <line x1="100" y1="254" x2="336" y2="254" stroke="var(--brand)" stroke-width="2" marker-end="url(#seq-arrow)"></line>
+              <text x="218" y="246" text-anchor="middle" font-size="11" fill="var(--text-primary)">5. saveSnapshot(year, month, data) refreshes local cache</text>
+            </svg>
+            <figcaption class="diagram-caption">
+              Figure 2 — Offline write queueing, local chart synthesis, and idempotent client_id replay on reconnect.
+            </figcaption>
+          </figure>
+        </section>
+
+        <section id="nginx-proxy" class="doc-section">
+          <h2>4. Nginx Reverse Proxy &amp; PWA Caching Strategy</h2>
+          <p>
+            Correct HTTP cache headers are essential for Progressive Web Apps: a cached <code>sw.js</code> or stale
+            <code>index.html</code> can trap clients on an outdated build. Nginx enforces strict differentiation between
+            mutable entrypoints and content-hashed bundles:
+          </p>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Location Match</th>
+                  <th>Directive / Policy</th>
+                  <th>Architectural Rationale</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>= /index.html</code></td>
+                  <td><code>Cache-Control: no-cache, no-store, must-revalidate</code></td>
+                  <td>Ensures browsers always resolve the latest hashed JS/CSS bundle URLs.</td>
+                </tr>
+                <tr>
+                  <td><code>sw.js</code>, <code>manifest.json</code>, <code>workbox-*.js</code></td>
+                  <td><code>Cache-Control: no-cache, no-store, must-revalidate</code></td>
+                  <td>Lets Workbox <code>registerType: 'autoUpdate'</code> detect new service worker revisions immediately.</td>
+                </tr>
+                <tr>
+                  <td><code>/assets/</code></td>
+                  <td><code>Cache-Control: public, max-age=31536000, immutable</code></td>
+                  <td>Vite injects content hashes into asset filenames; long-lived immutable caching maximizes speed.</td>
+                </tr>
+                <tr>
+                  <td><code>/api/</code></td>
+                  <td><code>proxy_pass http://backend:8000;</code></td>
+                  <td>Same-origin reverse proxy eliminates browser CORS preflight latency and hides internal Python port.</td>
+                </tr>
+                <tr>
+                  <td><code>/</code> (fallback)</td>
+                  <td><code>try_files $uri $uri/ /index.html;</code></td>
+                  <td>Enables client-side routing without Nginx 404 responses on deep reloads.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <nav class="page-pager" aria-label="Page pagination">
+          <a class="pager-link" href="./index.html">
+            <span class="pager-label">&larr; Previous Document</span>
+            <span class="pager-title">Overview &amp; Tech Stack</span>
+          </a>
+          <a class="pager-link" href="./lld.html">
+            <span class="pager-label">Next Document &rarr;</span>
+            <span class="pager-title">Low-Level Design (LLD)</span>
+          </a>
+        </nav>
+      </main>
+
+      <aside class="docs-toc" aria-label="On this page">
+        <p class="toc-title">On This Page</p>
+        <nav class="toc-nav">
+          <a href="#system-architecture">1. Container Topology</a>
+          <a href="#network-storage">2. Network &amp; Volumes</a>
+          <a href="#offline-pwa">3. Offline PWA Sync</a>
+          <a href="#nginx-proxy">4. Nginx &amp; Caching</a>
+        </nav>
+      </aside>
+    </div>
+
+    <div id="docs-drawer" class="Drawer" popover="manual" aria-label="Mobile navigation">
+      <div class="Drawer-scroller">
+        <nav class="Drawer-sheet" tabindex="-1" aria-label="Documentation navigation">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+            <span class="brand-link">
+              <span class="brand-mark" aria-hidden="true">&#8377;</span>
+              <span>Navigation</span>
+            </span>
+            <button id="drawer-close" class="icon-btn" type="button" aria-label="Close navigation menu">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          <p class="sidebar-group-title">Documentation Pages</p>
+          <ul class="sidebar-list">
+            <li><a class="sidebar-link" href="./index.html">Overview &amp; Tech Stack</a></li>
+            <li><a class="sidebar-link" href="./hld.html" aria-current="page">High-Level Design (HLD)</a></li>
+            <li><a class="sidebar-link" href="./lld.html">Low-Level Design (LLD)</a></li>
+            <li><a class="sidebar-link" href="./observability.html">Observability &amp; LGTM</a></li>
+          </ul>
+        </nav>
+      </div>
+    </div>
+  </body>
+</html>

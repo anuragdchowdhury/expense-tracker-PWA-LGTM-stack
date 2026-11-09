@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      (function () {
+        try {
+          var s = localStorage.getItem('docs-color-scheme');
+          if (s === 'light' || s === 'dark') {
+            document.querySelector('meta[name="color-scheme"]').content = s;
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <title>Observability &amp; LGTM Setup — Money Tracker PWA Docs</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+    <meta
+      name="description"
+      content="OpenTelemetry Python SDK instrumentation, Collector pipelines, Prometheus, Loki v3, Tempo v3, and correlated Grafana provisioning."
+    />
+    <link rel="stylesheet" href="./assets/styles.css" />
+    <script src="./assets/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand-link" href="./index.html">
+          <span class="brand-mark" aria-hidden="true">&#8377;</span>
+          <span>Money Tracker Docs</span>
+        </a>
+
+        <nav class="header-nav" aria-label="Primary navigation">
+          <a href="./index.html">Overview &amp; Stack</a>
+          <a href="./hld.html">High-Level Design</a>
+          <a href="./lld.html">Low-Level Design</a>
+          <a href="./observability.html" aria-current="page">Observability &amp; LGTM</a>
+        </nav>
+
+        <div class="header-actions">
+          <div class="search-box">
+            <label for="doc-search" class="visually-hidden">Search documentation</label>
+            <input
+              id="doc-search"
+              class="search-input"
+              type="search"
+              placeholder="Search docs (press /)..."
+              autocomplete="off"
+            />
+            <div id="search-results" class="search-results" hidden></div>
+          </div>
+
+          <button
+            id="theme-toggle"
+            class="icon-btn theme-toggle"
+            type="button"
+            aria-label="Toggle color theme"
+          >
+            <span class="label-to-light">
+              <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+              </svg>
+              <span>Light</span>
+            </span>
+            <span class="label-to-dark">
+              <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+              <span>Dark</span>
+            </span>
+          </button>
+
+          <button
+            id="drawer-open"
+            class="icon-btn"
+            type="button"
+            aria-controls="docs-drawer"
+            aria-expanded="false"
+            aria-label="Open navigation menu"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div id="docs-shell" class="docs-shell">
+      <aside class="docs-sidebar" aria-label="Documentation sections">
+        <p class="sidebar-group-title">Documentation</p>
+        <ul class="sidebar-list">
+          <li><a class="sidebar-link" href="./index.html">Overview &amp; Tech Stack</a></li>
+          <li><a class="sidebar-link" href="./hld.html">High-Level Design (HLD)</a></li>
+          <li><a class="sidebar-link" href="./lld.html">Low-Level Design (LLD)</a></li>
+          <li><a class="sidebar-link" href="./observability.html" aria-current="page">Observability &amp; LGTM</a></li>
+        </ul>
+
+        <p class="sidebar-group-title">Grafana Portal</p>
+        <div class="card">
+          <h4>Pre-Provisioned Access</h4>
+          <p>URL: <code>http://localhost:3000</code></p>
+          <p>Auth: Anonymous <code>Admin</code> enabled locally; user/pass <code>admin</code> / <code>admin</code></p>
+          <p>Dashboard UID: <code>money-tracker-lgtm</code></p>
+        </div>
+      </aside>
+
+      <main class="doc-content">
+        <div class="hero-card">
+          <div class="badge-row">
+            <span class="badge">OpenTelemetry Collector</span>
+            <span class="badge">Loki v3 + TSDB v13</span>
+            <span class="badge">Grafana Tempo v3</span>
+            <span class="badge">Prometheus Remote Write</span>
+          </div>
+          <h1>Observability &amp; LGTM Stack Setup</h1>
+          <p class="lead">
+            Unified telemetry architecture emitting correlated traces, custom business metrics, and structured logs
+            from FastAPI and SQLite3 through the OpenTelemetry Collector into Loki, Grafana, Tempo, and Prometheus.
+          </p>
+        </div>
+
+        <section id="pipeline" class="doc-section">
+          <h2>1. Telemetry Signals Pipeline (Traces, Metrics, Logs)</h2>
+          <p>
+            All three telemetry pillars leave <code>money-tracker-backend</code> over OTLP/HTTP (port <code>4318</code>)
+            toward <code>otel-collector</code>, decoupled from downstream storage protocols so collector batching,
+            memory protection, and routing stay centrally managed.
+          </p>
+
+          <figure class="diagram-card">
+            <svg viewBox="0 0 860 320" role="img" aria-label="Telemetry Pipeline Diagram showing FastAPI emitting OTLP Traces, Metrics, and Logs over port 4318 to OTel Collector pipelines, routing to Tempo, Prometheus, and Loki, and correlated in Grafana.">
+              <defs>
+                <marker id="obs-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--brand)"></path>
+                </marker>
+              </defs>
+
+              <!-- FastAPI Source -->
+              <rect x="18" y="42" width="190" height="236" rx="12" fill="var(--bg-subtle)" stroke="var(--brand)" stroke-width="2"></rect>
+              <text x="113" y="70" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">FastAPI + SQLite3</text>
+              <text x="113" y="90" text-anchor="middle" font-size="11" fill="var(--text-secondary)">service.name: money-tracker-backend</text>
+
+              <rect x="32" y="106" width="162" height="44" rx="8" fill="var(--brand-soft)" stroke="var(--brand)"></rect>
+              <text x="113" y="132" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text-primary)">Traces (/v1/traces)</text>
+
+              <rect x="32" y="162" width="162" height="44" rx="8" fill="var(--brand-soft)" stroke="var(--brand)"></rect>
+              <text x="113" y="188" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text-primary)">Metrics (/v1/metrics, 5s)</text>
+
+              <rect x="32" y="218" width="162" height="44" rx="8" fill="var(--brand-soft)" stroke="var(--brand)"></rect>
+              <text x="113" y="244" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text-primary)">Logs (/v1/logs + trace_id)</text>
+
+              <!-- Collector -->
+              <rect x="268" y="42" width="204" height="236" rx="12" fill="var(--bg-subtle)" stroke="var(--brand)" stroke-width="2"></rect>
+              <text x="370" y="70" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">OTel Collector Contrib</text>
+              <text x="370" y="90" text-anchor="middle" font-size="11" fill="var(--text-secondary)">memory_limiter (400 MiB) -&gt; batch (2s)</text>
+
+              <rect x="284" y="106" width="172" height="44" rx="8" fill="var(--bg-surface)" stroke="var(--border)"></rect>
+              <text x="370" y="132" text-anchor="middle" font-size="11.5" fill="var(--text-primary)">pipeline: traces</text>
+
+              <rect x="284" y="162" width="172" height="44" rx="8" fill="var(--bg-surface)" stroke="var(--border)"></rect>
+              <text x="370" y="188" text-anchor="middle" font-size="11.5" fill="var(--text-primary)">pipeline: metrics</text>
+
+              <rect x="284" y="218" width="172" height="44" rx="8" fill="var(--bg-surface)" stroke="var(--border)"></rect>
+              <text x="370" y="244" text-anchor="middle" font-size="11.5" fill="var(--text-primary)">pipeline: logs</text>
+
+              <!-- Backends -->
+              <rect x="530" y="42" width="160" height="66" rx="10" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1.5"></rect>
+              <text x="610" y="70" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--text-primary)">Tempo v3</text>
+              <text x="610" y="90" text-anchor="middle" font-size="11" fill="var(--text-secondary)">otlp_grpc :4317 -&gt; local blocks</text>
+
+              <rect x="530" y="128" width="160" height="72" rx="10" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1.5"></rect>
+              <text x="610" y="156" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--text-primary)">Prometheus v3</text>
+              <text x="610" y="176" text-anchor="middle" font-size="11" fill="var(--text-secondary)">prometheus_remote_write :9090</text>
+              <text x="610" y="191" text-anchor="middle" font-size="10.5" fill="var(--brand)">+ scrape :8888 (collector)</text>
+
+              <rect x="530" y="216" width="160" height="62" rx="10" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1.5"></rect>
+              <text x="610" y="244" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--text-primary)">Loki v3</text>
+              <text x="610" y="264" text-anchor="middle" font-size="11" fill="var(--text-secondary)">otlp_http /otlp :3100 (TSDB v13)</text>
+
+              <!-- Grafana -->
+              <rect x="734" y="88" width="110" height="148" rx="12" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="2"></rect>
+              <text x="789" y="148" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--text-primary)">Grafana</text>
+              <text x="789" y="168" text-anchor="middle" font-size="11" fill="var(--text-secondary)">Port :3000</text>
+              <text x="789" y="188" text-anchor="middle" font-size="10.5" fill="var(--brand)">Trace &lt;-&gt; Log</text>
+              <text x="789" y="204" text-anchor="middle" font-size="10.5" fill="var(--brand)">Correlated UI</text>
+
+              <!-- Edges -->
+              <line x1="194" y1="128" x2="280" y2="128" stroke="var(--brand)" stroke-width="2" marker-end="url(#obs-arrow)"></line>
+              <line x1="194" y1="184" x2="280" y2="184" stroke="var(--brand)" stroke-width="2" marker-end="url(#obs-arrow)"></line>
+              <line x1="194" y1="240" x2="280" y2="240" stroke="var(--brand)" stroke-width="2" marker-end="url(#obs-arrow)"></line>
+
+              <line x1="456" y1="128" x2="526" y2="75" stroke="var(--brand)" stroke-width="2" marker-end="url(#obs-arrow)"></line>
+              <line x1="456" y1="184" x2="526" y2="164" stroke="var(--brand)" stroke-width="2" marker-end="url(#obs-arrow)"></line>
+              <line x1="456" y1="240" x2="526" y2="246" stroke="var(--brand)" stroke-width="2" marker-end="url(#obs-arrow)"></line>
+
+              <line x1="690" y1="75" x2="732" y2="128" stroke="var(--brand)" stroke-width="1.8" marker-end="url(#obs-arrow)"></line>
+              <line x1="690" y1="164" x2="732" y2="164" stroke="var(--brand)" stroke-width="1.8" marker-end="url(#obs-arrow)"></line>
+              <line x1="690" y1="246" x2="732" y2="200" stroke="var(--brand)" stroke-width="1.8" marker-end="url(#obs-arrow)"></line>
+            </svg>
+            <figcaption class="diagram-caption">
+              Figure 1 — End-to-end OTLP telemetry pipeline linking FastAPI instrumentation to Tempo, Prometheus, Loki, and Grafana.
+            </figcaption>
+          </figure>
+        </section>
+
+        <section id="backend-otel" class="doc-section">
+          <h2>2. FastAPI &amp; SQLite3 OpenTelemetry Instrumentation</h2>
+          <p>
+            <code>setup_observability()</code> in <code>backend/main.py</code> initializes three OpenTelemetry SDK
+            providers tagged with resource attributes <code>service.name=money-tracker-backend</code>,
+            <code>service.version=1.0.0</code>, and <code>service.namespace=money-tracker</code>. Unit tests toggle
+            <code>OTEL_DISABLE_EXPORTERS=true</code> so spans execute in-memory without network calls.
+          </p>
+
+          <div class="grid-3">
+            <article class="card">
+              <h3>Automatic Instrumentors</h3>
+              <p>
+                <code>FastAPIInstrumentor</code> creates HTTP server root spans; <code>SQLite3Instrumentor</code> emits
+                child database query spans; <code>LoggingInstrumentor</code> plus <code>TraceContextFilter</code>
+                inject <code>trace_id</code> and <code>span_id</code> onto every log record.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Custom Counters</h3>
+              <p>
+                <code>money_tracker_expenses_created</code> (labeled by <code>category</code>),
+                <code>money_tracker_budget_updated</code>, and <code>money_tracker_dashboard_requests</code> export
+                every 5 seconds via <code>PeriodicExportingMetricReader</code>.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Currency Histogram</h3>
+              <p>
+                <code>money_tracker_expense_amount</code> records recorded expense sizes by <code>category</code> using
+                <code>unit=DEFAULT_CURRENCY</code> (defaulting to <code>INR</code> via <code>CURRENCY=INR</code>).
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section id="collector-config" class="doc-section">
+          <h2>3. OpenTelemetry Collector Contrib Configuration</h2>
+          <p>
+            Configured in <code>observability/otel-collector-config.yaml</code> for Collector Contrib v0.165+. Notice
+            three production details critical on modern images:
+          </p>
+          <ul>
+            <li>Exporter names use modern protocol-specific keys: <code>prometheus_remote_write</code>, <code>otlp_http/loki</code>, and <code>otlp_grpc/tempo</code>.</li>
+            <li><code>resource_to_telemetry_conversion: enabled: true</code> promotes <code>service.name</code> and resource metadata into queryable Prometheus labels.</li>
+            <li><code>service.telemetry.metrics.readers</code> configures the pull Prometheus self-metrics endpoint on <code>0.0.0.0:8888</code> (replacing removed legacy <code>address</code> field).</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span>yaml — observability/otel-collector-config.yaml (pipelines)</span>
+              <button class="copy-btn" type="button">Copy</button>
+            </div>
+            <pre><code>exporters:
+  prometheus_remote_write:
+    endpoint: "http://prometheus:9090/api/v1/write"
+    resource_to_telemetry_conversion:
+      enabled: true
+    tls:
+      insecure: true
+
+  otlp_http/loki:
+    endpoint: "http://loki:3100/otlp"
+    tls:
+      insecure: true
+
+  otlp_grpc/tempo:
+    endpoint: "tempo:4317"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:  { receivers: [otlp], processors: [memory_limiter, batch], exporters: [otlp_grpc/tempo] }
+    metrics: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [prometheus_remote_write] }
+    logs:    { receivers: [otlp], processors: [memory_limiter, batch], exporters: [otlp_http/loki] }</code></pre>
+          </div>
+        </section>
+
+        <section id="storage-backends" class="doc-section">
+          <h2>4. Prometheus v3, Loki v3, and Tempo v3 Setup</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Backend</th>
+                  <th>Version Nuances &amp; Key Settings</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Prometheus v3</strong> (<code>observability/prometheus.yaml</code>)</td>
+                  <td>Started with <code>--web.enable-remote-write-receiver</code> and <code>--web.enable-otlp-receiver</code>. Scrapes <code>localhost:9090</code> and <code>otel-collector:8888</code> every 15s.</td>
+                </tr>
+                <tr>
+                  <td><strong>Loki v3</strong> (<code>observability/loki-config.yaml</code>)</td>
+                  <td>Ingests native OTLP logs at <code>/otlp</code>. Requires <code>schema: v13</code> with <code>store: tsdb</code> when <code>allow_structured_metadata: true</code>, promoting <code>service.name</code>, <code>service.namespace</code>, and <code>deployment.environment</code> to index labels.</td>
+                </tr>
+                <tr>
+                  <td><strong>Tempo v3</strong> (<code>observability/tempo.yaml</code>)</td>
+                  <td>Uses simplified monolithic config (omits removed Tempo v2 <code>ingester:</code> and <code>compactor:</code> blocks). Receives OTLP on <code>:4317</code>/<code>:4318</code> and writes WAL + blocks under <code>/var/tempo</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="grafana-correlation" class="doc-section">
+          <h2>5. Grafana Datasources &amp; Trace-to-Logs Correlation</h2>
+          <p>
+            Provisioning files under <code>observability/grafana/provisioning/</code> configure Prometheus (UID
+            <code>prometheus</code>, default datasource), Loki (<code>loki</code>), and Tempo (<code>tempo</code>)
+            plus the auto-loaded dashboard <strong>Money Tracker - LGTM Observability</strong>
+            (<code>uid: money-tracker-lgtm</code>).
+          </p>
+
+          <div class="callout">
+            <strong>Bi-Directional Investigation Workflow</strong>
+            In Loki, <code>derivedFields</code> match both structured metadata label <code>trace_id</code> and inline
+            text <code>trace_id=([0-9a-fA-F]+)</code> to jump straight into Tempo spans. In Tempo,
+            <code>tracesToLogsV2</code> maps <code>service.name</code> to <code>service_name</code> so clicking any
+            FastAPI or SQLite span opens its correlated log lines in Loki automatically.
+          </div>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span>PromQL &amp; LogQL — Dashboard Panel Queries</span>
+              <button class="copy-btn" type="button">Copy</button>
+            </div>
+            <pre><code># Total expenses split by category (PromQL)
+sum by (category) (money_tracker_expenses_created_total)
+
+# Backend API p95 latency by route (PromQL)
+histogram_quantile(0.95, sum(rate(http_server_duration_milliseconds_bucket[5m])) by (le, http_route))
+
+# Correlated application logs with trace_id metadata (LogQL)
+{service_name="money-tracker-backend"}</code></pre>
+          </div>
+        </section>
+
+        <nav class="page-pager" aria-label="Page pagination">
+          <a class="pager-link" href="./lld.html">
+            <span class="pager-label">&larr; Previous Document</span>
+            <span class="pager-title">Low-Level Design (LLD)</span>
+          </a>
+          <a class="pager-link" href="./index.html">
+            <span class="pager-label">Back to Start &rarr;</span>
+            <span class="pager-title">Overview &amp; Tech Stack</span>
+          </a>
+        </nav>
+      </main>
+
+      <aside class="docs-toc" aria-label="On this page">
+        <p class="toc-title">On This Page</p>
+        <nav class="toc-nav">
+          <a href="#pipeline">1. Telemetry Pipeline</a>
+          <a href="#backend-otel">2. Backend Instrumentation</a>
+          <a href="#collector-config">3. OTel Collector Config</a>
+          <a href="#storage-backends">4. Prometheus, Loki, Tempo</a>
+          <a href="#grafana-correlation">5. Grafana Correlation</a>
+        </nav>
+      </aside>
+    </div>
+
+    <div id="docs-drawer" class="Drawer" popover="manual" aria-label="Mobile navigation">
+      <div class="Drawer-scroller">
+        <nav class="Drawer-sheet" tabindex="-1" aria-label="Documentation navigation">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+            <span class="brand-link">
+              <span class="brand-mark" aria-hidden="true">&#8377;</span>
+              <span>Navigation</span>
+            </span>
+            <button id="drawer-close" class="icon-btn" type="button" aria-label="Close navigation menu">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          <p class="sidebar-group-title">Documentation Pages</p>
+          <ul class="sidebar-list">
+            <li><a class="sidebar-link" href="./index.html">Overview &amp; Tech Stack</a></li>
+            <li><a class="sidebar-link" href="./hld.html">High-Level Design (HLD)</a></li>
+            <li><a class="sidebar-link" href="./lld.html">Low-Level Design (LLD)</a></li>
+            <li><a class="sidebar-link" href="./observability.html" aria-current="page">Observability &amp; LGTM</a></li>
+          </ul>
+        </nav>
+      </div>
+    </div>
+  </body>
+</html>

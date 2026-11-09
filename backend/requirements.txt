@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-sqlite3
+opentelemetry-instrumentation-logging
+opentelemetry-exporter-otlp
+

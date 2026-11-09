@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      (function () {
+        try {
+          var s = localStorage.getItem('docs-color-scheme');
+          if (s === 'light' || s === 'dark') {
+            document.querySelector('meta[name="color-scheme"]').content = s;
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <title>Low-Level Design (LLD) — Money Tracker PWA Docs</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+    <meta
+      name="description"
+      content="Database ER schema, SQLite WAL pragmas, FastAPI REST contracts, trend aggregations, and client utilities for Money Tracker."
+    />
+    <link rel="stylesheet" href="./assets/styles.css" />
+    <script src="./assets/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand-link" href="./index.html">
+          <span class="brand-mark" aria-hidden="true">&#8377;</span>
+          <span>Money Tracker Docs</span>
+        </a>
+
+        <nav class="header-nav" aria-label="Primary navigation">
+          <a href="./index.html">Overview &amp; Stack</a>
+          <a href="./hld.html">High-Level Design</a>
+          <a href="./lld.html" aria-current="page">Low-Level Design</a>
+          <a href="./observability.html">Observability &amp; LGTM</a>
+        </nav>
+
+        <div class="header-actions">
+          <div class="search-box">
+            <label for="doc-search" class="visually-hidden">Search documentation</label>
+            <input
+              id="doc-search"
+              class="search-input"
+              type="search"
+              placeholder="Search docs (press /)..."
+              autocomplete="off"
+            />
+            <div id="search-results" class="search-results" hidden></div>
+          </div>
+
+          <button
+            id="theme-toggle"
+            class="icon-btn theme-toggle"
+            type="button"
+            aria-label="Toggle color theme"
+          >
+            <span class="label-to-light">
+              <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+              </svg>
+              <span>Light</span>
+            </span>
+            <span class="label-to-dark">
+              <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+              <span>Dark</span>
+            </span>
+          </button>
+
+          <button
+            id="drawer-open"
+            class="icon-btn"
+            type="button"
+            aria-controls="docs-drawer"
+            aria-expanded="false"
+            aria-label="Open navigation menu"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div id="docs-shell" class="docs-shell">
+      <aside class="docs-sidebar" aria-label="Documentation sections">
+        <p class="sidebar-group-title">Documentation</p>
+        <ul class="sidebar-list">
+          <li><a class="sidebar-link" href="./index.html">Overview &amp; Tech Stack</a></li>
+          <li><a class="sidebar-link" href="./hld.html">High-Level Design (HLD)</a></li>
+          <li><a class="sidebar-link" href="./lld.html" aria-current="page">Low-Level Design (LLD)</a></li>
+          <li><a class="sidebar-link" href="./observability.html">Observability &amp; LGTM</a></li>
+        </ul>
+
+        <p class="sidebar-group-title">Core Modules</p>
+        <div class="card">
+          <h4>Key Source Files</h4>
+          <p><code>backend/models.py</code></p>
+          <p><code>backend/main.py</code></p>
+          <p><code>frontend/src/utils/currency.js</code></p>
+          <p><code>frontend/src/utils/temporal.js</code></p>
+        </div>
+      </aside>
+
+      <main class="doc-content">
+        <div class="hero-card">
+          <div class="badge-row">
+            <span class="badge">SQLAlchemy 2 ORM</span>
+            <span class="badge">Pydantic v2 Validation</span>
+            <span class="badge">INR (en-IN) Formatting</span>
+            <span class="badge">Temporal PlainDate</span>
+          </div>
+          <h1>Low-Level Design (LLD)</h1>
+          <p class="lead">
+            Relational SQLite table definitions, REST payload contracts, server/client dashboard
+            aggregation algorithms, INR localization helpers, and modal form validation mechanics.
+          </p>
+        </div>
+
+        <section id="database-schema" class="doc-section">
+          <h2>1. SQLite Database Schema &amp; ER Diagram</h2>
+          <p>
+            Persistence is defined in <code>backend/models.py</code> using SQLAlchemy 2 declarative mappings.
+            On every engine connection, <code>_set_sqlite_pragmas</code> runs <code>PRAGMA journal_mode=WAL;</code>
+            for concurrent non-blocking reads during API writes and <code>PRAGMA foreign_keys=ON;</code> to enforce
+            <code>ON DELETE CASCADE</code> referential integrity.
+          </p>
+
+          <figure class="diagram-card">
+            <svg viewBox="0 0 860 270" role="img" aria-label="Entity Relationship Diagram for users, budgets, and expenses tables in SQLite.">
+              <!-- users table -->
+              <rect x="20" y="55" width="215" height="145" rx="10" fill="var(--bg-subtle)" stroke="var(--brand)" stroke-width="2"></rect>
+              <rect x="20" y="55" width="215" height="34" rx="10" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="1.5"></rect>
+              <text x="127" y="77" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">users</text>
+              <text x="34" y="112" font-size="12" fill="var(--text-primary)">PK id : INTEGER</text>
+              <text x="34" y="136" font-size="12" fill="var(--text-primary)">UQ username : VARCHAR(64)</text>
+              <text x="34" y="160" font-size="12" fill="var(--text-secondary)">created_at : DATETIME (UTC)</text>
+
+              <!-- budgets table -->
+              <rect x="315" y="18" width="245" height="215" rx="10" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1.8"></rect>
+              <rect x="315" y="18" width="245" height="34" rx="10" fill="var(--brand-soft)" stroke="var(--border)" stroke-width="1.5"></rect>
+              <text x="437" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">budgets</text>
+              <text x="329" y="74" font-size="12" fill="var(--text-primary)">PK id : INTEGER</text>
+              <text x="329" y="98" font-size="12" fill="var(--brand)">FK user_id -&gt; users.id (CASCADE)</text>
+              <text x="329" y="122" font-size="12" fill="var(--text-primary)">UQ* month : INTEGER (1..12)</text>
+              <text x="329" y="146" font-size="12" fill="var(--text-primary)">UQ* year : INTEGER</text>
+              <text x="329" y="170" font-size="12" fill="var(--text-primary)">amount : FLOAT NOT NULL</text>
+              <text x="329" y="194" font-size="12" fill="var(--text-secondary)">updated_at : DATETIME (UTC)</text>
+              <text x="329" y="218" font-size="10.5" fill="var(--text-secondary)">*uq_budget_user_month_year</text>
+
+              <!-- expenses table -->
+              <rect x="605" y="18" width="240" height="236" rx="10" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1.8"></rect>
+              <rect x="605" y="18" width="240" height="34" rx="10" fill="var(--brand-soft)" stroke="var(--border)" stroke-width="1.5"></rect>
+              <text x="725" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-primary)">expenses</text>
+              <text x="619" y="74" font-size="12" fill="var(--text-primary)">PK id : INTEGER</text>
+              <text x="619" y="98" font-size="12" fill="var(--brand)">FK user_id -&gt; users.id (CASCADE)</text>
+              <text x="619" y="122" font-size="12" fill="var(--text-primary)">amount : FLOAT NOT NULL</text>
+              <text x="619" y="146" font-size="12" fill="var(--text-primary)">IDX category : VARCHAR(32)</text>
+              <text x="619" y="170" font-size="12" fill="var(--text-primary)">IDX date : VARCHAR(10) ISO</text>
+              <text x="619" y="194" font-size="12" fill="var(--text-secondary)">description : VARCHAR(255)</text>
+              <text x="619" y="218" font-size="12" fill="var(--brand)">UQ client_id : VARCHAR(64) NULL</text>
+              <text x="619" y="242" font-size="12" fill="var(--text-secondary)">created_at : DATETIME (UTC)</text>
+
+              <!-- Connectors -->
+              <line x1="235" y1="108" x2="315" y2="92" stroke="var(--brand)" stroke-width="2"></line>
+              <text x="275" y="90" text-anchor="middle" font-size="11" font-weight="700" fill="var(--brand)">1 : N</text>
+
+              <path d="M 235 170 C 275 245, 560 258, 605 120" fill="none" stroke="var(--brand)" stroke-width="1.8" stroke-dasharray="5 3"></path>
+              <text x="437" y="256" text-anchor="middle" font-size="11" font-weight="700" fill="var(--brand)">users 1 : N expenses (by user_id)</text>
+            </svg>
+            <figcaption class="diagram-caption">
+              Figure 1 — SQLite schema showing composite uniqueness on monthly budgets and client_id deduplication index on expenses.
+            </figcaption>
+          </figure>
+
+          <p>Supported expense categories are enforced via <code>CategoryEnum</code> on both backend validation and frontend selectors:</p>
+          <p><code>Food</code>, <code>Transport</code>, <code>Utilities</code>, <code>Entertainment</code>, <code>Health</code>, <code>Shopping</code>, <code>Others</code>.</p>
+        </section>
+
+        <section id="api-contracts" class="doc-section">
+          <h2>2. FastAPI Endpoints &amp; Validation Contracts</h2>
+          <p>
+            Routes are mounted under <code>api_router = APIRouter(prefix="/api")</code>. Health checks exist at both
+            <code>/health</code> and <code>/api/health</code> and are excluded from OpenTelemetry tracing spans via
+            <code>excluded_urls="health,/api/health"</code>.
+          </p>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Method &amp; Path</th>
+                  <th>Input / Query Contract</th>
+                  <th>Response &amp; Behavior</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>GET /api/dashboard</code></td>
+                  <td><code>?month=1..12&amp;year=2000..2100&amp;today=YYYY-MM-DD</code></td>
+                  <td>Returns monthly budget status, <code>currency</code> (<code>"INR"</code>), category sums, daily/cumulative array, Mon–Sun weekly array, and sorted expenses.</td>
+                </tr>
+                <tr>
+                  <td><code>POST /api/expenses</code></td>
+                  <td><code>amount</code> (&gt; 0, &le; 100M, 2dp), <code>category</code>, <code>date</code>, <code>description</code>, optional <code>client_id</code></td>
+                  <td>Returns <code>201 Created</code>. If <code>client_id</code> already exists for user, returns existing expense idempotently without incrementing metrics twice.</td>
+                </tr>
+                <tr>
+                  <td><code>DELETE /api/expenses/{id}</code></td>
+                  <td>Path integer <code>expense_id</code></td>
+                  <td>Deletes user-owned row and returns <code>{"deleted": true, "id": ...}</code>, or <code>404</code> if missing.</td>
+                </tr>
+                <tr>
+                  <td><code>POST /api/budget</code></td>
+                  <td><code>amount</code> (&gt; 0, &le; 100M), optional <code>month</code>, <code>year</code></td>
+                  <td>Upserts row keyed by <code>(user_id, month, year)</code>, increments <code>money_tracker_budget_updated</code> counter, returns <code>BudgetOut</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>GET /api/categories</code></td>
+                  <td>None</td>
+                  <td>Returns ordered <code>CATEGORIES</code> tuple for dropdown synchronization.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span>JSON — Sample GET /api/dashboard?year=2026&amp;month=11 response</span>
+              <button class="copy-btn" type="button">Copy</button>
+            </div>
+            <pre><code>{
+  "month": 11,
+  "year": 2026,
+  "currency": "INR",
+  "has_budget": true,
+  "budget": 25000.0,
+  "total_expenses": 1450.5,
+  "remaining_budget": 23549.5,
+  "categories": ["Food", "Transport", "Utilities", "Entertainment", "Health", "Shopping", "Others"],
+  "expenses_by_category": [
+    { "category": "Food", "total": 950.5, "count": 2 },
+    { "category": "Transport", "total": 500.0, "count": 1 }
+  ],
+  "daily_trend": [ { "date": "2026-11-01", "day": 1, "label": "Nov 1", "total": 0.0, "cumulative": 0.0 } ],
+  "weekly_trend": [ { "date": "2026-11-09", "label": "Mon", "full_label": "Nov 9", "total": 500.0 } ],
+  "expenses": [ { "id": 1, "amount": 950.5, "category": "Food", "date": "2026-11-08", "description": "Groceries", "client_id": "..." } ]
+}</code></pre>
+          </div>
+        </section>
+
+        <section id="aggregation-logic" class="doc-section">
+          <h2>3. Dashboard Trend &amp; Category Aggregation Logic</h2>
+          <p>
+            Identical aggregation algorithms run on the backend (<code>backend/main.py</code>) and inside the browser
+            fallback builder (<code>buildOfflineDashboard</code> in <code>offlineStore.js</code>) so charts never
+            flicker or diverge when transitioning offline:
+          </p>
+
+          <div class="grid-2">
+            <article class="card">
+              <h3>Monthly Category Breakdown</h3>
+              <p>
+                Groups expenses matching <code>YYYY-MM-</code> by category, summing floats rounded to 2 decimal places
+                and sorting descending by total spend for the Recharts donut visualization and percentage share list.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Daily &amp; Cumulative Series</h3>
+              <p>
+                Iterates days <code>1..daysInMonth</code> via <code>calendar.monthrange</code> (server) or
+                <code>PlainYearMonth.daysInMonth</code> (client), emitting both single-day spend and running cumulative
+                spend per date.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Weekly Window (Mon–Sun)</h3>
+              <p>
+                For the active current month, computes Monday of the current week using <code>ref_today.weekday()</code>
+                (or Temporal <code>dayOfWeek - 1</code>). For historical months, displays the trailing 7 days of that
+                month so past views remain meaningful.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Location-Agnostic Today Param</h3>
+              <p>
+                Frontend supplies the user&apos;s local calendar date (<code>Temporal.Now.plainDateISO().toString()</code>)
+                in <code>?today=</code> so weekly boundary alignment matches the device timezone rather than container UTC.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section id="frontend-modules" class="doc-section">
+          <h2>4. Frontend Modules (INR Currency, Temporal &amp; Native Dialogs)</h2>
+
+          <div class="grid-2">
+            <article class="card">
+              <h3><code>currency.js</code> — INR Default &amp; Locale</h3>
+              <p>
+                Defaults to <code>DEFAULT_CURRENCY = 'INR'</code> with <code>en-IN</code> formatting
+                (<code>&#8377;25,000.00</code>, compact axis ticks <code>&#8377;25,000</code>). Persists user selection
+                (<code>INR</code>, <code>USD</code>, <code>EUR</code>, <code>GBP</code>) in <code>localStorage['mt_currency_code']</code>
+                via Settings.
+              </p>
+            </article>
+            <article class="card">
+              <h3><code>temporal.js</code> — Safe Calendar Formatting</h3>
+              <p>
+                Conditionally loads <code>temporal-polyfill</code> only when native <code>globalThis.Temporal</code> is
+                absent. Formats month labels via <code>ym.toPlainDate({ day: 1 }).toLocaleString(...)</code> to avoid
+                native Chrome <code>RangeError: Mismatched calendars</code> between <code>iso8601</code> and
+                <code>gregory</code>.
+              </p>
+            </article>
+            <article class="card">
+              <h3><code>validation.js</code> — Interaction-First Errors</h3>
+              <p>
+                Prefers native <code>:user-invalid</code> CSS pseudo-class synced to <code>aria-invalid</code>, with a
+                <code>WeakMap</code> dirty/blurred fallback so required field errors only display after user interaction.
+              </p>
+            </article>
+            <article class="card">
+              <h3><code>AddExpenseDialog.jsx</code> — Native Modal</h3>
+              <p>
+                Uses semantic <code>&lt;dialog closedby="any"&gt;</code> opened via <code>showModal()</code> plus a
+                pointer-bounds fallback for browsers without native light-dismiss, autofocusing the amount field.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <nav class="page-pager" aria-label="Page pagination">
+          <a class="pager-link" href="./hld.html">
+            <span class="pager-label">&larr; Previous Document</span>
+            <span class="pager-title">High-Level Design (HLD)</span>
+          </a>
+          <a class="pager-link" href="./observability.html">
+            <span class="pager-label">Next Document &rarr;</span>
+            <span class="pager-title">Observability &amp; LGTM Setup</span>
+          </a>
+        </nav>
+      </main>
+
+      <aside class="docs-toc" aria-label="On this page">
+        <p class="toc-title">On This Page</p>
+        <nav class="toc-nav">
+          <a href="#database-schema">1. SQLite Schema &amp; ER</a>
+          <a href="#api-contracts">2. FastAPI Contracts</a>
+          <a href="#aggregation-logic">3. Aggregation Logic</a>
+          <a href="#frontend-modules">4. Frontend Modules</a>
+        </nav>
+      </aside>
+    </div>
+
+    <div id="docs-drawer" class="Drawer" popover="manual" aria-label="Mobile navigation">
+      <div class="Drawer-scroller">
+        <nav class="Drawer-sheet" tabindex="-1" aria-label="Documentation navigation">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+            <span class="brand-link">
+              <span class="brand-mark" aria-hidden="true">&#8377;</span>
+              <span>Navigation</span>
+            </span>
+            <button id="drawer-close" class="icon-btn" type="button" aria-label="Close navigation menu">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          <p class="sidebar-group-title">Documentation Pages</p>
+          <ul class="sidebar-list">
+            <li><a class="sidebar-link" href="./index.html">Overview &amp; Tech Stack</a></li>
+            <li><a class="sidebar-link" href="./hld.html">High-Level Design (HLD)</a></li>
+            <li><a class="sidebar-link" href="./lld.html" aria-current="page">Low-Level Design (LLD)</a></li>
+            <li><a class="sidebar-link" href="./observability.html">Observability &amp; LGTM</a></li>
+          </ul>
+        </nav>
+      </div>
+    </div>
+  </body>
+</html>
